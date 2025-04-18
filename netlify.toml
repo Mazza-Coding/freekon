@@ -1,0 +1,36 @@
+# netlify.toml
+# ─────────────────────────────────────────────────────────────
+# Build the Vite frontend and, in the same step, deploy Convex
+# functions.  Then publish the static files from ./dist.
+# ─────────────────────────────────────────────────────────────
+
+[build]
+  command = "npx convex deploy --cmd \"npm run build\""
+  publish = "dist"                # ← Vite’s output folder
+  # If you need extra environment vars, add them here or in the UI
+  # [build.environment]
+  #   VITE_CONVEX_URL = "https://your-instance.convex.cloud"
+  #   CLERK_PUBLISHABLE_KEY = "pk_live_..."
+
+# -----------------------------------------------------------------
+# SPA fallback so React Router routes don’t 404 on refresh / deep links
+# -----------------------------------------------------------------
+[[redirects]]
+  from = "/*"
+  to   = "/index.html"
+  status = 200
+  force = true        # always serve index.html (optional but handy)
+
+# -----------------------------------------------------------------
+# (Optional) Explicit MIME types – usually not necessary once
+# publish = "dist" is correct, but harmless to keep.
+# -----------------------------------------------------------------
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+
+[[headers]]
+  for = "/*.mjs"
+  [headers.values]
+    Content-Type = "application/javascript"
