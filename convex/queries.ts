@@ -1,6 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 
 /**
  * Fetches the top 4 most recently updated courses.
@@ -183,5 +183,64 @@ export const getLessonById = query({
 
     // Return the lesson document (should include title, blocks, etc.)
     return lesson;
+  },
+});
+
+/**
+ * Searches for courses and learning paths by title using a case-insensitive regex.
+ * Returns up to 4 combined results.
+ * Note: Regex search without an index can be slow on large datasets.
+ * Consider using Convex Search Indexes for better performance and relevance.
+ * @param searchInput - The string to search for in titles.
+ */
+export const searchCoursesAndPaths = query({
+  args: {
+    searchInput: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const searchQuery = args.searchInput.trim();
+
+    if (searchQuery.length < 2) {
+      return [];
+    }
+
+    // Create a case-insensitive regex for JS filtering
+    // Escape special regex characters in the user input
+    const escapedSearchQuery = searchQuery.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+    const searchRegex = new RegExp(escapedSearchQuery, "i");
+
+    // --- INEFFICIENCY WARNING ---
+    // Fetches ALL documents. Use Convex Search Indexes for production.
+    // --------------------------
+
+    // 1. Fetch ALL Courses and filter in handler
+    const allCourses = await ctx.db.query("courses").collect();
+    const courseResults = allCourses.filter((course) =>
+      searchRegex.test(course.title)
+    );
+
+    // 2. Fetch ALL Learning Paths and filter in handler
+    const allPaths = await ctx.db.query("learningPaths").collect();
+    const pathResults = allPaths.filter((path) => searchRegex.test(path.title));
+
+    // 3. Combine and Format Results
+    const combinedResults = [
+      ...courseResults.map((course) => ({
+        ...course,
+        type: "course" as const,
+      })),
+      ...pathResults.map((path) => ({ ...path, type: "path" as const })),
+    ];
+
+    // 4. Limit results
+    const limitedResults = combinedResults.slice(0, 4);
+
+    type SearchResult =
+      | (Doc<"courses"> & { type: "course" })
+      | (Doc<"learningPaths"> & { type: "path" });
+    return limitedResults as SearchResult[];
   },
 });

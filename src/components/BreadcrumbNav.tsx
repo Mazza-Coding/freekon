@@ -16,7 +16,7 @@ const BreadcrumbNav = ({ items }: BreadcrumbNavProps) => {
   return (
     <nav className="flex items-center space-x-2 mb-8 font-mono text-sm">
       {items.map((item, index) => (
-        <React.Fragment key={item.path}>
+        <span key={item.path} className="inline-flex items-center space-x-2">
           <Link
             to={item.path}
             className={cn(
@@ -30,7 +30,7 @@ const BreadcrumbNav = ({ items }: BreadcrumbNavProps) => {
           {index < items.length - 1 && (
             <ChevronRight className="h-4 w-4 text-muted-foreground dark:text-gray-500" />
           )}
-        </React.Fragment>
+        </span>
       ))}
     </nav>
   );

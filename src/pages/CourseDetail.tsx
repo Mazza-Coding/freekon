@@ -31,63 +31,89 @@ const isValidConvexId = (
 };
 
 const CourseDetail = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id: idFromParams } = useParams<{ id: string }>();
   const location = useLocation();
   const { userId, isLoaded: authLoaded } = useAuth();
   const navigate = useNavigate();
 
+  console.log(`CourseDetail: Received id from params: ${idFromParams}`);
+
   // Validate the ID from URL params
-  const isValidId = isValidConvexId(id);
-  const courseId = isValidId ? id : undefined;
+  const isValidId = isValidConvexId(idFromParams);
+  console.log(`CourseDetail: isValidId check result: ${isValidId}`);
+
+  const courseId = isValidId ? idFromParams : undefined;
+  console.log(`CourseDetail: Derived courseId for query: ${courseId}`);
+
+  // Argument for the course query
+  const courseQueryArgs =
+    !location.state?.courseData && courseId ? { courseId } : "skip";
+  console.log(`CourseDetail: Args for getCourseById query:`, courseQueryArgs);
 
   // Fetch course data ONLY if it wasn't passed via state and the ID is valid
-  const course = useQuery(
-    api.queries.getCourseById,
-    !location.state?.courseData && courseId ? { courseId } : "skip"
-  );
+  const course = useQuery(api.queries.getCourseById, courseQueryArgs);
 
-  // Fetch lessons for the course if the ID is valid
-  const lessons = useQuery(
-    api.queries.getCourseLessons,
-    courseId ? { courseId } : "skip"
+  // Argument for lessons query
+  const lessonsQueryArgs = courseId ? { courseId } : "skip";
+  console.log(
+    `CourseDetail: Args for getCourseLessons query:`,
+    lessonsQueryArgs
   );
+  const lessons = useQuery(api.queries.getCourseLessons, lessonsQueryArgs);
 
-  // Fetch user progress (only if authenticated and courseId is valid)
+  // Argument for progress query
+  const progressQueryArgs = userId && courseId ? { userId, courseId } : "skip";
+  console.log(
+    `CourseDetail: Args for getUserCourseProgress query:`,
+    progressQueryArgs
+  );
   const userProgress = useQuery(
     api.queries.getUserCourseProgress,
-    userId && courseId ? { userId, courseId } : "skip"
+    progressQueryArgs
   );
 
   // Loading states
-  const isCourseLoading = !location.state?.courseData && course === undefined;
-  const isLessonsLoading = lessons === undefined;
-  const isProgressLoading = authLoaded && userId && userProgress === undefined;
+  const isCourseLoading = courseQueryArgs !== "skip" && course === undefined;
+  const isLessonsLoading = lessonsQueryArgs !== "skip" && lessons === undefined;
+  const isProgressLoading =
+    progressQueryArgs !== "skip" && userProgress === undefined;
   const isLoading =
     !authLoaded || isCourseLoading || isLessonsLoading || isProgressLoading;
+  console.log(
+    `CourseDetail: Loading states -> auth: ${!authLoaded}, course: ${isCourseLoading}, lessons: ${isLessonsLoading}, progress: ${isProgressLoading}`
+  );
 
   // Handle invalid ID format immediately
   if (!isValidId) {
-    console.error("Invalid Course ID format:", id);
+    console.error("Invalid Course ID format:", idFromParams);
     // Optionally show a specific error message or redirect
     return <Navigate to="/404" replace />; // Redirect to a not found page
   }
 
   // Handle course not found after loading
-  if (!isCourseLoading && !course) {
-    console.error("Course not found for ID:", id);
+  // Use courseDataFromState or fetched course
+  const courseData = location.state?.courseData ?? course;
+  console.log(
+    `CourseDetail: Course data used for rendering (state or fetched):`,
+    courseData
+  ); // Log the actual data being used
+
+  if (!isLoading && !courseData) {
+    // Check if courseData is null/undefined after loading
+    console.error("Course not found for ID (after loading):", courseId);
     return <Navigate to="/404" replace />; // Redirect if course doesn't exist
   }
 
   // Breadcrumbs (can be set once courseData is available)
-  const breadcrumbItems = course
+  const breadcrumbItems = courseData
     ? [
         { label: "Menu", path: "/" },
-        { label: "Course", path: `/course/${course._id}` }, // Use courseData._id
+        { label: "Course", path: `/course/${courseData._id}` },
       ]
     : [
         { label: "Menu", path: "/" },
         { label: "Course", path: "#" },
-      ]; // Placeholder while loading
+      ];
 
   // Determine Next Lesson
   const { status, nextLessonId } = useMemo(() => {
@@ -177,7 +203,7 @@ const CourseDetail = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Left Column - Course Info */}
         <div className="space-y-6">
-          {isLoading || !course ? (
+          {isLoading || !courseData ? (
             // Course Info Skeleton
             <div className="border border-black dark:border-white p-6 bg-white dark:bg-gray-800 space-y-4">
               <Skeleton className="h-8 w-3/4" />
@@ -196,10 +222,10 @@ const CourseDetail = () => {
             // Actual Course Info
             <div className="border border-black dark:border-white p-6 bg-white dark:bg-gray-800">
               <h1 className="text-2xl font-bold mb-4 tracking-tight dark:text-white">
-                {course.title}
+                {courseData.title}
               </h1>
               <p className="text-sm mb-6 dark:text-gray-300">
-                {course.description}
+                {courseData.description}
               </p>
               <div className="flex justify-between items-center text-xs dark:text-gray-400">
                 <Badge
@@ -209,7 +235,7 @@ const CourseDetail = () => {
                   {isLessonsLoading ? "..." : (lessons?.length ?? 0)} lessons
                 </Badge>
                 <div className="flex gap-4">
-                  <span>{course.level}</span>
+                  <span>{courseData.level}</span>
                   {/* Display duration if available and needed */}
                   {/* <span>{courseData.duration}</span> */}
                 </div>
